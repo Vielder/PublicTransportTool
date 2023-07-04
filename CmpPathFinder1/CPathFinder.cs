@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
@@ -9,7 +10,6 @@ using System.Text;
 using System.Threading.Tasks;
 using CmpHelpers;
 using System.Data;
-using CmpSearchData;
 
 namespace CmpPathFinder
 {
@@ -160,7 +160,7 @@ namespace CmpPathFinder
                                 INNER JOIN stoptimes st ON s.stop_id = st.stop_id
                                 INNER JOIN trips t ON st.trip_id = t.trip_id
                                 INNER JOIN routes r ON t.route_id = r.route_id
-                                WHERE r.route_short_name IN (' {routeA}', ' {routeB} ')";
+                                WHERE r.route_short_name IN (' {routeA}', ' {routeB} ')"
 
             // if one of the routes is not a bus - compares route numbers AND route types
             if (compareRouteTypes)
@@ -222,7 +222,6 @@ namespace CmpPathFinder
                     }
                 }
             }
-            return transferStops;
         }
 
         private void findRouteByThreeStops(string laht, string siht, List<string> itemsList, string curTime, bool totalTime, bool wheelChair, NpgsqlConnection conn)
@@ -232,10 +231,10 @@ namespace CmpPathFinder
             List<string> ACList = new List<string>();
             List<string> CBList = new List<string>();
             findUniqueRoutes(laht, siht, uniqueRoutesLaht, uniqueRoutesSiht, curTime, wheelChair, conn);
-            List<string> transferStops = findAllIntesections(laht, siht, uniqueRoutesLaht, uniqueRoutesSiht, conn);
-            string transferStop = string.Empty;
+            List<string> = findAllIntesections(laht, siht, uniqueRoutesLaht, uniqueRoutesSiht, conn);
+            string transfersStop = string.Empty;
             string curTimeTemp;
-            foreach (string st in transferStops)
+            foreach (string st in transfersStop)
             {
                 curTimeTemp = curTime;
                 // if no routes not found
@@ -243,14 +242,14 @@ namespace CmpPathFinder
                 {
                     ACList.Clear();
                     CBList.Clear();
-                    findRouteByTwoStops("1", laht, st, ACList, ref curTimeTemp, wheelChair, conn);
-                    findRouteByTwoStops("1", st, siht, CBList, ref curTimeTemp, wheelChair, conn);
+                    findRouteByTwoStops(1, laht, st, ACList, curTimeTemp, wheelChair, conn);
+                    findRouteByTwoStops(1, st, siht, CBList, curTimeTemp, wheelChair, conn);
                     // save transfer stop to output it as information
-                    transferStop = st;
+                    transfersStop = st;
                 }
                 else break;
             }
-            int loopCounter = 0;
+            int loopCounter;
 
             // this part will be necessary if output was more than one route 
             if (ACList.Count > CBList.Count)
@@ -261,7 +260,7 @@ namespace CmpPathFinder
                 loopCounter = ACList.Count;
             }
 
-            for (int i = 0; i < loopCounter; i++)
+            for (int i = 0, loopCounter - 1, i++)
             {
                 if (ACList[i] != null && CBList[i] != null)
                 {
@@ -277,110 +276,18 @@ namespace CmpPathFinder
                         index = CBList.IndexOf(": ");
                         TimeSpan time2 = TimeSpan.Parse(CBList[i].Substring(index + 2, 5));
                         TimeSpan timeResult = time2 - time1;
-                        itemsList.Add("Kokku: " + time1.ToString("hh\\:mm") + " - " + time2.ToString("hh\\:mm") + " (" + timeResult.TotalMinutes.ToString("0") + " min)");
+                        itemsList.Add("Kokku: " + time1.ToString("hh\\:mm") + " - " & time2.ToString("hh\\:mm") + " (" + timeResult.TotalMinutes.ToString("0") + " min)");
                     }
                 }
             }
 
         }
 
-        private string findNextStop(int seqPlus, string laht, string routeNumber, NpgsqlConnection conn)
+        private void findRouteByFourStops(string laht, string siht, List<string> itemsList, string curTime, bool wheelChair,  conn)
+
+        private List<string> findRoute(string itemsLaht, string itemsSiht, int nudTransfersAmount, bool wheelChair, string curTime, NpgsqlConnection conn)
         {
-            string nextStop = string.Empty;
-
-            // query selects stop name using tables: stoptimes, trips, routes, stops.
-            // "stop_sequence" of a route is incremented by "seqPlus", so output is a stop which is @seqPlus stops from a start stop
-            string query = $@"SELECT s2.stop_name
-                           FROM stops s1
-                           JOIN stoptimes st1 ON s1.stop_id = st1.stop_id
-                           JOIN trips t1 ON st1.trip_id = t1.trip_id
-                           JOIN routes r1 ON t1.route_id = r1.route_id
-                           JOIN stoptimes st2 ON t1.trip_id = st2.trip_id
-                           JOIN stops s2 ON st2.stop_id = s2.stop_id
-                           WHERE s1.stop_name = '{laht}'
-                           AND r1.route_short_name = '{routeNumber}'
-                           AND st1.stop_sequence + {seqPlus} = st2.stop_sequence
-                           LIMIT 1;";
-
-            using (NpgsqlCommand comm = new NpgsqlCommand(query, conn))
-            {
-                using (NpgsqlDataReader reader = comm.ExecuteReader())
-                {
-                    if (reader.HasRows)
-                    {
-                        while (reader.Read())
-                        {
-                            nextStop = reader.GetString(0);
-                        }
-                    }
-                    else
-                    {
-                        nextStop = "";
-                    }
-                }
-            }
-            return nextStop;
-        }
-
-
-        private void findRouteByFourStops(string laht, string siht, List<string> itemsList, string curTime, bool wheelChair, NpgsqlConnection conn)
-        {
-            ISearchData searchDB = new CSearchData();
-            NpgsqlDataReader reader = searchDB.searchInDb(laht, "", "", "", "relatedRoutes", conn);
-            // all route numbers from given stop
-            List<string> routeNumbers = new List<string>();
-            while (reader.Read())
-            {
-                routeNumbers.Add(reader.GetString(0));
-            }
-            reader.DisposeAsync();
-
-            int seqPlus = 1;
-            string tempStop = laht;
-            List<string> itemsFirstRouteList = new List<string>();
-            List<string> itemsSecondRouteList = new List<string>();
-
-            foreach (int i in Enumerable.Range(0, routeNumbers.Count))
-            {
-                while (tempStop != string.Empty)
-                {
-                    tempStop = findNextStop(seqPlus, laht, routeNumbers[i], conn);
-                    findRouteByTwoStops("1", laht, tempStop, itemsFirstRouteList, ref curTime, wheelChair, conn);
-                    try
-                    {
-                        int index = itemsFirstRouteList[0].IndexOf(": ");
-                        curTime = itemsFirstRouteList[0].Substring(index + 10, 5);
-                        findRouteByThreeStops(tempStop, siht, itemsSecondRouteList, curTime, false, wheelChair, conn);
-                        // if both routes are found
-                        if (itemsFirstRouteList.Count > 0 && itemsSecondRouteList.Count > 0)
-                        {
-                            itemsList.AddRange(itemsFirstRouteList);
-                            itemsList.Add("Ümberistumise peatus: " + tempStop);
-                            itemsList.AddRange(itemsSecondRouteList);
-
-                            TimeSpan time1 = TimeSpan.Parse(itemsFirstRouteList[0].Substring(index + 2, 5));
-                            index = itemsSecondRouteList[2].IndexOf(": ");
-                            TimeSpan time2 = TimeSpan.Parse(itemsSecondRouteList[2].Substring(index + 10, 5));
-                            TimeSpan timeResult = time2 - time1;
-                            itemsList.Add("Kokku: " + time1.ToString("hh\\:mm") + " - " + time2.ToString("hh\\:mm") + " (" + timeResult.TotalMinutes.ToString("0") + " min)");
-
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        Console.WriteLine("Error in findRouteByFourStops method!");
-                    }
-                    itemsFirstRouteList.Clear();
-                    itemsSecondRouteList.Clear();
-                    // if next stop is needed
-                    seqPlus += 1;
-                }
-            }
-
-        }
-
-        public List<string> findRoute(string itemsLaht, string itemsSiht, int nudTransfersAmount, bool wheelChair, string curTime, NpgsqlConnection conn)
-        {
+            throw new NotImplementedException();
             List<string> itemsList = new List<string>();
             List<string> itemsTempList = new List<string>();
 
@@ -411,12 +318,8 @@ namespace CmpPathFinder
                 else
                 {
                     findRouteByFourStops(itemsLaht, itemsSiht, itemsTempList, curTime, wheelChair, conn);
-                    if (itemsTempList.Count > 0)
-                    {
-                        itemsList.AddRange(itemsTempList);
-                    }
+
                 }
-                return itemsList;
             }
 
         }

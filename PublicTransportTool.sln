@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmpMap", "CmpMap\CmpMap.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmpSearchData", "CmpSearchData\CmpSearchData.csproj", "{50318F4E-A10A-427A-810F-C52D503BF6FA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmpPathFinder", "CmpPathFinder\CmpPathFinder.csproj", "{95428DBE-B391-4955-AA3A-B17C3F4DBDB3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmpPathFinder", "CmpPathFinder\CmpPathFinder.csproj", "{0B17FB76-1239-49F1-8F88-3F0D2CE69DD6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,10 +35,10 @@ Global
 		{50318F4E-A10A-427A-810F-C52D503BF6FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{50318F4E-A10A-427A-810F-C52D503BF6FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{50318F4E-A10A-427A-810F-C52D503BF6FA}.Release|Any CPU.Build.0 = Release|Any CPU
-		{95428DBE-B391-4955-AA3A-B17C3F4DBDB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{95428DBE-B391-4955-AA3A-B17C3F4DBDB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{95428DBE-B391-4955-AA3A-B17C3F4DBDB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{95428DBE-B391-4955-AA3A-B17C3F4DBDB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B17FB76-1239-49F1-8F88-3F0D2CE69DD6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B17FB76-1239-49F1-8F88-3F0D2CE69DD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B17FB76-1239-49F1-8F88-3F0D2CE69DD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B17FB76-1239-49F1-8F88-3F0D2CE69DD6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
