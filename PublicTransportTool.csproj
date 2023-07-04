@@ -163,24 +163,6 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\CmpHelpers\CmpHelpers.csproj">
-      <Project>{01dc2537-f149-4cda-876d-c20512483376}</Project>
-      <Name>CmpHelpers</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\CmpMap\CmpMap.csproj">
-      <Project>{f7a4e581-1e41-4ea9-8c1c-09045b4e9f97}</Project>
-      <Name>CmpMap</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\CmpPathFinder\CmpPathFinder.csproj">
-      <Project>{95428dbe-b391-4955-aa3a-b17c3f4dbdb3}</Project>
-      <Name>CmpPathFinder</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\CmpSearchData\CmpSearchData.csproj">
-      <Project>{50318f4e-a10a-427a-810f-c52d503bf6fa}</Project>
-      <Name>CmpSearchData</Name>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
