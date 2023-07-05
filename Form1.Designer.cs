@@ -51,10 +51,10 @@ namespace PublicTransportTool
             this.checkWheelchair = new System.Windows.Forms.CheckBox();
             this.lblTransfersAmount = new System.Windows.Forms.Label();
             this.nudTransfersAmount = new System.Windows.Forms.NumericUpDown();
-            this.btnExport = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.PictureBox1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudTransfersAmount)).BeginInit();
             this.SuspendLayout();
+            this.Resize += new System.EventHandler(this.Main_Resize);
             // 
             // map
             // 
@@ -82,6 +82,7 @@ namespace PublicTransportTool
             this.map.Size = new System.Drawing.Size(1400, 833);
             this.map.TabIndex = 2;
             this.map.Zoom = 11D;
+            this.map.OnMarkerClick += new GMap.NET.WindowsForms.MarkerClick(this.map_OnMarkerClick);
             // 
             // cmbLaht
             // 
@@ -92,6 +93,13 @@ namespace PublicTransportTool
             this.cmbLaht.Name = "cmbLaht";
             this.cmbLaht.Size = new System.Drawing.Size(121, 21);
             this.cmbLaht.TabIndex = 3;
+            this.cmbLaht.SelectedIndexChanged += new System.EventHandler(this.cmbLaht_SelectedIndexChanged);
+            this.cmbLaht.KeyPress += new KeyPressEventHandler(this.cmbLaht_KeyPress);
+            this.cmbLaht.TextChanged += new System.EventHandler(this.cmbLaht_TextChanged);
+            this.cmbLaht.DropDownClosed += new System.EventHandler(this.cmbLaht_DropDownClosed);
+            this.cmbLaht.SelectionChangeCommitted += new System.EventHandler(this.cmbLaht_SelectionChangeCommitted);
+            this.cmbLaht.SelectedIndexChanged += new System.EventHandler(this.cmbLaht_SelectedIndexChanged);
+
             // 
             // cmbSiht
             // 
@@ -101,6 +109,12 @@ namespace PublicTransportTool
             this.cmbSiht.Name = "cmbSiht";
             this.cmbSiht.Size = new System.Drawing.Size(121, 21);
             this.cmbSiht.TabIndex = 4;
+            this.cmbSiht.KeyPress += new KeyPressEventHandler(this.cmbSiht_KeyPress);
+            this.cmbSiht.TextChanged += new System.EventHandler(this.cmbSiht_TextChanged);
+            this.cmbSiht.DropDownClosed += new System.EventHandler(this.cmbSiht_DropDownClosed);
+            this.cmbSiht.SelectionChangeCommitted += new System.EventHandler(this.cmbSiht_SelectionChangeCommitted);
+            this.cmbSiht.SelectedIndexChanged += new System.EventHandler(this.cmbSiht_SelectedIndexChanged);
+
             // 
             // cmbLiin
             // 
@@ -110,6 +124,12 @@ namespace PublicTransportTool
             this.cmbLiin.Name = "cmbLiin";
             this.cmbLiin.Size = new System.Drawing.Size(121, 21);
             this.cmbLiin.TabIndex = 5;
+            this.cmbLiin.KeyPress += new KeyPressEventHandler(this.cmbLiin_KeyPress);
+            this.cmbLiin.TextChanged += new System.EventHandler(this.cmbLiin_TextChanged);
+            this.cmbLiin.DropDownClosed += new System.EventHandler(this.cmbLiin_DropDownClosed);
+            this.cmbLiin.SelectionChangeCommitted += new System.EventHandler(this.cmbLiin_SelectionChangeCommitted);
+            this.cmbLiin.SelectedIndexChanged += new System.EventHandler(this.cmbLiin_SelectedIndexChanged);
+            this.cmbLiin.DrawItem += new DrawItemEventHandler(this.cmbLiin_DrawItem);
             // 
             // cmbSuund
             // 
@@ -119,6 +139,7 @@ namespace PublicTransportTool
             this.cmbSuund.Name = "cmbSuund";
             this.cmbSuund.Size = new System.Drawing.Size(121, 21);
             this.cmbSuund.TabIndex = 6;
+            this.cmbSuund.SelectedIndexChanged += new System.EventHandler(this.cmbSuund_SelectedIndexChanged);
             // 
             // lblLaht
             // 
@@ -168,6 +189,11 @@ namespace PublicTransportTool
             this.lstInfo.Name = "lstInfo";
             this.lstInfo.Size = new System.Drawing.Size(342, 134);
             this.lstInfo.TabIndex = 11;
+            this.lstInfo.DrawItem += new DrawItemEventHandler(this.lstInfo_DrawItem);
+            // 
+            // tmrUpdate
+            // 
+            this.tmrUpdate.Tick += new System.EventHandler(this.tmrUpdate_Tick);
             // 
             // btnOtsi
             // 
@@ -178,6 +204,11 @@ namespace PublicTransportTool
             this.btnOtsi.TabIndex = 12;
             this.btnOtsi.Text = "Otsi";
             this.btnOtsi.UseVisualStyleBackColor = true;
+            this.btnOtsi.Click += new System.EventHandler(this.btnOtsi_Click);
+            // 
+            // tmrGPSUpdate
+            // 
+            this.tmrGPSUpdate.Tick += new System.EventHandler(this.tmrGPSUpdate_Tick);
             // 
             // PictureBox1
             // 
@@ -223,22 +254,11 @@ namespace PublicTransportTool
             this.nudTransfersAmount.Size = new System.Drawing.Size(120, 20);
             this.nudTransfersAmount.TabIndex = 19;
             // 
-            // btnExport
-            // 
-            this.btnExport.Location = new System.Drawing.Point(1296, 782);
-            this.btnExport.Margin = new System.Windows.Forms.Padding(0);
-            this.btnExport.Name = "btnExport";
-            this.btnExport.Size = new System.Drawing.Size(0, 1);
-            this.btnExport.TabIndex = 20;
-            this.btnExport.Text = "Export list of all stops to CSV";
-            this.btnExport.UseVisualStyleBackColor = true;
-            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1399, 830);
-            this.Controls.Add(this.btnExport);
             this.Controls.Add(this.nudTransfersAmount);
             this.Controls.Add(this.lblTransfersAmount);
             this.Controls.Add(this.checkWheelchair);
@@ -257,6 +277,7 @@ namespace PublicTransportTool
             this.Margin = new System.Windows.Forms.Padding(0);
             this.Name = "Form1";
             this.Text = "Transport Map";
+            this.Load += new System.EventHandler(this.Form1_Load);
             ((System.ComponentModel.ISupportInitialize)(this.PictureBox1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudTransfersAmount)).EndInit();
             this.ResumeLayout(false);
@@ -281,7 +302,6 @@ namespace PublicTransportTool
         private CheckBox checkWheelchair;
         private Label lblTransfersAmount;
         private NumericUpDown nudTransfersAmount;
-        private Button btnExport;
 
         #endregion
     }

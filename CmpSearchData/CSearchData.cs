@@ -17,7 +17,7 @@ namespace CmpSearchData
         {
             // choosing right query
             string query = string.Empty;
-            NpgsqlDataReader reader;
+            NpgsqlDataReader reader = null;
             switch (find)
             {
                 case "filterStops":
@@ -57,10 +57,8 @@ namespace CmpSearchData
                 {
                     MessageBox.Show("Connection error. Do something and try again. Program may terminate in several seconds");
                     reader = comm.ExecuteReader();
-                    // Stop
                 }
             }
-
             return reader;
         }
 

@@ -6,13 +6,13 @@
     public string strText { get; set; }
 
     // Identifier for color
-    public string intID { get; set; }
+    public int intID { get; set; }
 
     public CustomList()
     {
     }
 
-    public CustomList(string name, string id)
+    public CustomList(string name, int id)
     {
         this.strText = name;
         this.intID = id;
