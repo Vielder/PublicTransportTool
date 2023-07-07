@@ -19,12 +19,8 @@ public class CPathFinder : IPathFinder
     private async Task<List<string>> FindRoutesByTwoStopsAsync(string limitValue, string laht, string siht, string curTime, bool wheelChair, NpgsqlConnection conn)
     {
         List<string> itemsList = new List<string>();
-        if (curTime.Equals("")) 
-        {
-            curTime = DateTime.Now.ToString("HH:mm:ss");
-        }
-        
         string time = curTime;
+        curTime = DateTime.Now.ToString("HH:mm:ss");
 
 
         string query = $@"SELECT DISTINCT r.route_short_name, t.trip_long_name, t.trip_headsign, 
