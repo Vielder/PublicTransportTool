@@ -68,6 +68,12 @@ namespace CmpHelpers
                             (int.Parse(times[2]) - int.Parse(timeSubst[2]) + 60).ToString();
                 }
                 // Subtract the timeToSubtract from the original time and return the result
+                else if (k[0] == 1)
+                {
+                    time = (int.Parse(times[0]) - int.Parse(timeSubst[0]) - k[0]).ToString() + ":" +
+                            (int.Parse(times[1]) - int.Parse(timeSubst[1]) + 60).ToString() + ":" +
+                            (int.Parse(times[2]) - int.Parse(timeSubst[2])).ToString();
+                }
                 else
                 {
                     time = (int.Parse(times[0]) - int.Parse(timeSubst[0])).ToString() + ":" +

@@ -9,6 +9,6 @@ namespace CmpPathFinder
 {
     public interface IPathFinder
     {
-        List<string> findRoute(string itemsLaht, string itemsSiht, int nudTransfersAmount, bool wheelChair, string curTime, NpgsqlConnection conn);
+        Task<List<string>> FindRouteAsync(string itemsLaht, string itemsSiht, int transfersAmount, bool wheelChair, string curTime, NpgsqlConnection conn);
     }
 }

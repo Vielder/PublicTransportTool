@@ -10,19 +10,24 @@ using System.Threading.Tasks;
 using CmpHelpers;
 using System.Data;
 using CmpSearchData;
+using CmpPathFinder;
+using System.Text.RegularExpressions;
+using Npgsql.Internal.TypeHandlers.DateTimeHandlers;
 
-namespace CmpPathFinder
+public class CPathFinder : IPathFinder
 {
-    public class CPathFinder : IPathFinder
+    private async Task<List<string>> FindRoutesByTwoStopsAsync(string limitValue, string laht, string siht, string curTime, bool wheelChair, NpgsqlConnection conn)
     {
-        private void findRouteByTwoStops(string limitValue, string laht, string siht, List<string> itemsList, ref string time, bool wheelChair, NpgsqlConnection conn)
+        List<string> itemsList = new List<string>();
+        if (curTime.Equals("")) 
         {
-            //query selects route number, trip long name etc. using tables:
-            //routes, trips, stoptimes, stops, calendar.
-            //query searches for a route number, that moves across both given stops
-            //outputs routes with arrival time after current time
-            //and only routes that are available in a current day
-            string query = $@"SELECT DISTINCT r.route_short_name, t.trip_long_name, t.trip_headsign, 
+            curTime = DateTime.Now.ToString("HH:mm:ss");
+        }
+        
+        string time = curTime;
+
+
+        string query = $@"SELECT DISTINCT r.route_short_name, t.trip_long_name, t.trip_headsign, 
                             st1.arrival_time, st2.arrival_time
                 FROM routes r 
                 JOIN trips t ON r.route_id = t.route_id 
@@ -31,9 +36,9 @@ namespace CmpPathFinder
                 JOIN stops s1 ON st1.stop_id = s1.stop_id 
                 JOIN stops s2 ON st2.stop_id = s2.stop_id 
                 JOIN calendar c ON t.service_id = c.service_id
-                WHERE s1.stop_name = {laht}
-                    AND s2.stop_name = {siht}  
-                    AND st1.arrival_time >= {time}
+                WHERE s1.stop_name = '{laht}'
+                    AND s2.stop_name = '{siht}'
+                    AND st1.arrival_time >= '{time}'
                     AND st1.stop_sequence < st2.stop_sequence 
                     AND 
                     (    
@@ -48,45 +53,40 @@ namespace CmpPathFinder
                         END
                     ) = true";
 
-            query += wheelChair ? " AND t.wheelchair_accessible = true" : "";
-            query += " ORDER BY st2.arrival_time ASC LIMIT " + limitValue;
+        if (wheelChair)
+        {
+            query += " AND t.wheelchair_accessible = true";
+        }
 
-            IHelpers helpers = new CHelpers();
-            DateTime curTime = DateTime.Now;
+        query += $@" ORDER BY st2.arrival_time ASC LIMIT {limitValue}";
 
-            using (NpgsqlCommand comm = new NpgsqlCommand()) 
+        IHelpers helpers = new CHelpers();
+
+        using (NpgsqlCommand comm = new NpgsqlCommand(query, conn))
+        {
+            using (NpgsqlDataReader reader = await comm.ExecuteReaderAsync())
             {
-                comm.Connection = conn;
-                comm.CommandType = System.Data.CommandType.Text;
-                comm.CommandText = query;
-
-                using (NpgsqlDataReader reader = comm.ExecuteReader())
+                while (await reader.ReadAsync())
                 {
                     TimeSpan timeA = TimeSpan.Parse(reader.GetString(3));
                     TimeSpan timeB = TimeSpan.Parse(reader.GetString(4));
                     TimeSpan timeResult = timeB - timeA;
                     string strRoute = reader.GetString(0) + " - " + reader.GetString(1);
-                    string strText = strRoute + ": " + timeA.ToString("hh\\:mm") + " - " + timeB.ToString("hh\\:mm") + " (" + timeResult.TotalMinutes.ToString("0") + " min)" + "  " + helpers.timeHandler(reader.GetString(3), curTime.ToString("HH:mm:ss"));
+                    string strText = strRoute + ": " + timeA.ToString("hh\\:mm") + " - " + timeB.ToString("hh\\:mm") + " (" + timeResult.TotalMinutes.ToString("0") + " min)" + "  " + helpers.timeHandler(reader.GetString(3), curTime);
                     itemsList.Add(strText);
                     time = timeB.ToString();
                 }
             }
         }
 
-        private void findUniqueRoutes(string laht, string siht, List<string> uniqueRoutesLaht, List<string> uniqueRoutesSiht, string time, bool wheelChair, NpgsqlConnection conn)
-        {
-            List<string> uniqueRoutesList = new List<string>();
-            /*
-             * query selects route number and route type using tables:
-             * routes, trips, stoptimes, stops, calendar.
-             * stop_order is used to divide route numbers considering its stop
-             * query searches for all route numbers, that are unique for both given stops
-             * outputs routes with arrival time after current time
-             * and only routes that are available in a current day
-            */
-            string query = $@"SELECT r.route_short_name, 
-                          CASE WHEN s.stop_name = '{laht}' THEN 1 
-                                   WHEN s.stop_name = '{siht}' THEN 2 
+        return itemsList;
+    }
+
+    private async Task FindUniqueRoutesAsync(string laht, string siht, List<string> uniqueRoutesLaht, List<string> uniqueRoutesSiht, string time, bool wheelChair, NpgsqlConnection conn)
+    {
+        string query = $@"SELECT r.route_short_name, 
+                          CASE WHEN s.stop_name = '{laht}'THEN 1 
+                               WHEN s.stop_name = '{siht}' THEN 2 
                           END AS stop_order, r.route_type
                   FROM routes r
                   JOIN trips t ON r.route_id = t.route_id
@@ -107,318 +107,180 @@ namespace CmpPathFinder
                           WHEN 6 THEN c.saturday
                           END
                       ) = true";
-            if (wheelChair)
-            {
-                query += " AND t.wheelchair_accessible = true";
-            }
-            query += @" GROUP BY r.route_short_name, r.route_type, s.stop_name
+
+        if (wheelChair)
+        {
+            query += " AND t.wheelchair_accessible = true";
+        }
+
+        query += @" GROUP BY r.route_short_name, r.route_type, s.stop_name
                     ORDER BY stop_order, route_type DESC, route_short_name ASC";
-            using (NpgsqlCommand comm = new NpgsqlCommand())
-            {
-                comm.Connection = conn;
-                comm.CommandType = CommandType.Text;
-                comm.CommandText = query;
-                using (NpgsqlDataReader reader = comm.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        // tempReader reads stop_order column. Value 1 - route number belongs to the start stop, value 2 - final stop
-                        int tempReader = reader.GetInt32(1);
-                        if (tempReader == 1)
-                        {
-                            uniqueRoutesLaht.Add(reader.GetString(0) + " " + reader.GetInt32(2));
-                        } 
-                        else
-                        {
-                            uniqueRoutesSiht.Add(reader.GetString(0) + " " + reader.GetInt32(2));
-                        }
-                    }
-                    reader.DisposeAsync();
-                }
 
-            };
-        }
-
-        private string findIntesection(string routeA, string routeB, int rTypeA, int rTypeB, NpgsqlConnection conn)
+        using (NpgsqlCommand comm = new NpgsqlCommand(query, conn))
         {
-            string intersectonStop = string.Empty;
-            bool compareRouteTypes = false;
-
-            // if is not a bus
-            if (rTypeA != 3 || rTypeA != 3)
+            using (NpgsqlDataReader reader = await comm.ExecuteReaderAsync())
             {
-                compareRouteTypes = true;
-            }
-
-            /*
-             * query selects stop name using tables:
-             * stops, stoptimes, trips, routes.
-             * "HAVING COUNT = 2" makes query output only stop name which are in both (2) given routes             
-            */
-            string query = $@"SELECT s.stop_name
-                                FROM stops s
-                                INNER JOIN stoptimes st ON s.stop_id = st.stop_id
-                                INNER JOIN trips t ON st.trip_id = t.trip_id
-                                INNER JOIN routes r ON t.route_id = r.route_id
-                                WHERE r.route_short_name IN (' {routeA}', ' {routeB} ')";
-
-            // if one of the routes is not a bus - compares route numbers AND route types
-            if (compareRouteTypes)
-            {
-                query += $" AND r.route_type IN (' {rTypeA} ', ' {rTypeB} ')";
-            }
-            query += @" GROUP BY s.stop_id
-                        HAVING COUNT(DISTINCT r.route_id) = 2
-                        LIMIT 1";
-
-            using (NpgsqlCommand comm = new NpgsqlCommand())
-            {
-                comm.Connection = conn;
-                comm.CommandType = CommandType.Text;
-                comm.CommandText = query;
-                using (NpgsqlDataReader reader = comm.ExecuteReader())
+                while (await reader.ReadAsync())
                 {
-                    if (reader.HasRows)
+                    int tempReader = reader.GetInt32(1);
+                    if (tempReader == 1)
                     {
-                        while (reader.Read())
-                        {
-                            intersectonStop = reader.GetString(0);
-                        }
+                        uniqueRoutesLaht.Add(reader.GetString(0) + " " + reader.GetInt32(2));
                     }
                     else
                     {
-                        intersectonStop = string.Empty;
+                        uniqueRoutesSiht.Add(reader.GetString(0) + " " + reader.GetInt32(2));
                     }
                 }
             }
-            return intersectonStop;
         }
+    }
 
-        private List<string> findAllIntesections(string laht, string siht, List<string> uniqueRoutesLaht, List<string> uniqueRoutesSiht, NpgsqlConnection conn)
+    private async Task<string> FindIntersectionAsync(string routeA, string routeB, int rTypeA, int rTypeB, NpgsqlConnection conn)
+    {
+        string intersectionStop = string.Empty;
+        bool compareRouteTypes = false;
+
+        if (rTypeA != 3 || rTypeA != 3)
         {
-            string tempStop;
-            List<string> transferStops = new List<string>();
-            // Iterate through each unique route in the starting location
-            foreach (int i in Enumerable.Range(0, uniqueRoutesLaht.Count)) {
-                string[] routePartsLaht = uniqueRoutesLaht[i].Split(' ');
-                string tempLahtRouteName = routePartsLaht[0];
-                int tempLahtRouteType = int.Parse(routePartsLaht[1]);
-
-                // Iterate through each unique route in the destination location
-                foreach (int j in Enumerable.Range(0, uniqueRoutesLaht.Count))
-                {
-                    // Split the route name and type from the current unique route in the destination location
-                    string[] routePartsSiht = uniqueRoutesSiht[j].Split(' ');
-                    string tempSihtRouteName = routePartsSiht[0];
-                    int tempSihtRouteType = int.Parse((string)routePartsSiht[1]);
-
-                    // Find the intersection stop between the current routes in the starting and destination locations
-                    tempStop = findIntesection(tempLahtRouteName, tempSihtRouteName, tempLahtRouteType, tempSihtRouteType, conn);
-
-                    // If an intersection stop is found and it has not already been added to the list of transfer stops, add it to the list
-                    if (!string.IsNullOrEmpty(tempStop) && !transferStops.Contains(tempStop))
-                    {
-                        transferStops.Add(tempStop);
-                    }
-                }
-            }
-            return transferStops;
+            compareRouteTypes = true;
         }
 
-        private void findRouteByThreeStops(string laht, string siht, List<string> itemsList, string curTime, bool totalTime, bool wheelChair, NpgsqlConnection conn)
+        string query = $@"SELECT s.stop_name
+                            FROM stops s
+                            INNER JOIN stoptimes st ON s.stop_id = st.stop_id
+                            INNER JOIN trips t ON st.trip_id = t.trip_id
+                            INNER JOIN routes r ON t.route_id = r.route_id
+                            WHERE r.route_short_name IN ('{routeA}', '{routeB}')";
+
+        if (compareRouteTypes)
         {
-            List<string> uniqueRoutesLaht = new List<string>();
-            List<string> uniqueRoutesSiht = new List<string>();
-            List<string> ACList = new List<string>();
-            List<string> CBList = new List<string>();
-            findUniqueRoutes(laht, siht, uniqueRoutesLaht, uniqueRoutesSiht, curTime, wheelChair, conn);
-            List<string> transferStops = findAllIntesections(laht, siht, uniqueRoutesLaht, uniqueRoutesSiht, conn);
-            string transferStop = string.Empty;
-            string curTimeTemp;
-            foreach (string st in transferStops)
-            {
-                curTimeTemp = curTime;
-                // if no routes not found
-                if (ACList.Count == 0 || CBList.Count == 0)
-                {
-                    ACList.Clear();
-                    CBList.Clear();
-                    findRouteByTwoStops("1", laht, st, ACList, ref curTimeTemp, wheelChair, conn);
-                    findRouteByTwoStops("1", st, siht, CBList, ref curTimeTemp, wheelChair, conn);
-                    // save transfer stop to output it as information
-                    transferStop = st;
-                }
-                else break;
-            }
-            int loopCounter = 0;
-
-            // this part will be necessary if output was more than one route 
-            if (ACList.Count > CBList.Count)
-            {
-                loopCounter = CBList.Count;
-            } else
-            {
-                loopCounter = ACList.Count;
-            }
-
-            for (int i = 0; i < loopCounter; i++)
-            {
-                if (ACList[i] != null && CBList[i] != null)
-                {
-                    itemsList.Add(ACList[i]);
-                    itemsList.Add("Ümberistumise peatus: " + transferStop);
-                    itemsList.Add(CBList[i]);
-
-                    // if true - display time information
-                    if (totalTime)
-                    {
-                        int index = ACList[i].IndexOf(": ");
-                        TimeSpan time1 = TimeSpan.Parse(ACList[i].Substring(index + 2, 5));
-                        index = CBList.IndexOf(": ");
-                        TimeSpan time2 = TimeSpan.Parse(CBList[i].Substring(index + 2, 5));
-                        TimeSpan timeResult = time2 - time1;
-                        itemsList.Add("Kokku: " + time1.ToString("hh\\:mm") + " - " + time2.ToString("hh\\:mm") + " (" + timeResult.TotalMinutes.ToString("0") + " min)");
-                    }
-                }
-            }
-
+            query += $" AND r.route_type IN ('{rTypeA}', '{rTypeB}')";
         }
 
-        private string findNextStop(int seqPlus, string laht, string routeNumber, NpgsqlConnection conn)
+        query += @" GROUP BY s.stop_id
+                    HAVING COUNT(DISTINCT r.route_id) = 2
+                    LIMIT 1";
+
+        using (NpgsqlCommand comm = new NpgsqlCommand(query, conn))
         {
-            string nextStop = string.Empty;
-
-            // query selects stop name using tables: stoptimes, trips, routes, stops.
-            // "stop_sequence" of a route is incremented by "seqPlus", so output is a stop which is @seqPlus stops from a start stop
-            string query = $@"SELECT s2.stop_name
-                           FROM stops s1
-                           JOIN stoptimes st1 ON s1.stop_id = st1.stop_id
-                           JOIN trips t1 ON st1.trip_id = t1.trip_id
-                           JOIN routes r1 ON t1.route_id = r1.route_id
-                           JOIN stoptimes st2 ON t1.trip_id = st2.trip_id
-                           JOIN stops s2 ON st2.stop_id = s2.stop_id
-                           WHERE s1.stop_name = '{laht}'
-                           AND r1.route_short_name = '{routeNumber}'
-                           AND st1.stop_sequence + {seqPlus} = st2.stop_sequence
-                           LIMIT 1;";
-
-            using (NpgsqlCommand comm = new NpgsqlCommand(query, conn))
+            using (NpgsqlDataReader reader = await comm.ExecuteReaderAsync())
             {
-                using (NpgsqlDataReader reader = comm.ExecuteReader())
+                if (reader.HasRows)
                 {
-                    if (reader.HasRows)
+                    while (await reader.ReadAsync())
                     {
-                        while (reader.Read())
-                        {
-                            nextStop = reader.GetString(0);
-                        }
-                    }
-                    else
-                    {
-                        nextStop = "";
+                        intersectionStop = reader.GetString(0);
                     }
                 }
             }
-            return nextStop;
         }
 
+        return intersectionStop;
+    }
 
-        private void findRouteByFourStops(string laht, string siht, List<string> itemsList, string curTime, bool wheelChair, NpgsqlConnection conn)
+    private async Task<List<string>> FindAllIntersectionsAsync(string laht, string siht, List<string> uniqueRoutesLaht, List<string> uniqueRoutesSiht, NpgsqlConnection conn)
+    {
+        List<string> transferStops = new List<string>();
+
+        foreach (var routeLaht in uniqueRoutesLaht)
         {
-            ISearchData searchDB = new CSearchData();
-            NpgsqlDataReader reader = searchDB.searchInDb(laht, "", "", "", "relatedRoutes", conn);
-            // all route numbers from given stop
-            List<string> routeNumbers = new List<string>();
-            while (reader.Read())
-            {
-                routeNumbers.Add(reader.GetString(0));
-            }
-            reader.DisposeAsync();
+            string[] routePartsLaht = routeLaht.Split(' ');
+            string tempLahtRouteName = routePartsLaht[0];
+            int tempLahtRouteType = int.Parse(routePartsLaht[1]);
 
-            int seqPlus = 1;
-            string tempStop = laht;
-            List<string> itemsFirstRouteList = new List<string>();
-            List<string> itemsSecondRouteList = new List<string>();
-
-            foreach (int i in Enumerable.Range(0, routeNumbers.Count))
+            foreach (var routeSiht in uniqueRoutesSiht)
             {
-                while (tempStop != string.Empty)
+                string[] routePartsSiht = routeSiht.Split(' ');
+                string tempSihtRouteName = routePartsSiht[0];
+                int tempSihtRouteType = int.Parse(routePartsSiht[1]);
+
+                string tempStop = await FindIntersectionAsync(tempLahtRouteName, tempSihtRouteName, tempLahtRouteType, tempSihtRouteType, conn);
+
+                if (!string.IsNullOrEmpty(tempStop) && !transferStops.Contains(tempStop))
                 {
-                    tempStop = findNextStop(seqPlus, laht, routeNumbers[i], conn);
-                    findRouteByTwoStops("1", laht, tempStop, itemsFirstRouteList, ref curTime, wheelChair, conn);
-                    try
-                    {
-                        int index = itemsFirstRouteList[0].IndexOf(": ");
-                        curTime = itemsFirstRouteList[0].Substring(index + 10, 5);
-                        findRouteByThreeStops(tempStop, siht, itemsSecondRouteList, curTime, false, wheelChair, conn);
-                        // if both routes are found
-                        if (itemsFirstRouteList.Count > 0 && itemsSecondRouteList.Count > 0)
-                        {
-                            itemsList.AddRange(itemsFirstRouteList);
-                            itemsList.Add("Ümberistumise peatus: " + tempStop);
-                            itemsList.AddRange(itemsSecondRouteList);
-
-                            TimeSpan time1 = TimeSpan.Parse(itemsFirstRouteList[0].Substring(index + 2, 5));
-                            index = itemsSecondRouteList[2].IndexOf(": ");
-                            TimeSpan time2 = TimeSpan.Parse(itemsSecondRouteList[2].Substring(index + 10, 5));
-                            TimeSpan timeResult = time2 - time1;
-                            itemsList.Add("Kokku: " + time1.ToString("hh\\:mm") + " - " + time2.ToString("hh\\:mm") + " (" + timeResult.TotalMinutes.ToString("0") + " min)");
-
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        Console.WriteLine("Error in findRouteByFourStops method!");
-                    }
-                    itemsFirstRouteList.Clear();
-                    itemsSecondRouteList.Clear();
-                    // if next stop is needed
-                    seqPlus += 1;
+                    transferStops.Add(tempStop);
                 }
             }
-
         }
 
-        public List<string> findRoute(string itemsLaht, string itemsSiht, int nudTransfersAmount, bool wheelChair, string curTime, NpgsqlConnection conn)
+        return transferStops;
+    }
+
+    private async Task<List<string>> FindRoutesByThreeStopsAsync(string laht, string siht, List<string> uniqueRoutesLaht, List<string> uniqueRoutesSiht, string time, bool wheelChair, NpgsqlConnection conn)
+    {
+        List<string> itemsList = new List<string>();
+
+        IHelpers helpers = new CHelpers();
+
+        // TODO: optimize search and display multiple routes with transfers
+        //foreach (var transferStop in await FindAllIntersectionsAsync(laht, siht, uniqueRoutesLaht, uniqueRoutesSiht, conn))
+        //{
+        List<string> transferStops = await FindAllIntersectionsAsync(laht, siht, uniqueRoutesLaht, uniqueRoutesSiht, conn);
+
+        string[] routePartsLaht = uniqueRoutesLaht[0].Split(' ');
+        string tempLahtRouteName = routePartsLaht[0];
+        int tempLahtRouteType = int.Parse(routePartsLaht[1]);
+
+        string[] routePartsSiht = uniqueRoutesSiht[0].Split(' ');
+        string tempSihtRouteName = routePartsSiht[0];
+        int tempSihtRouteType = int.Parse(routePartsSiht[1]);
+
+        List<string> transferRoutes = await FindRoutesByTwoStopsAsync("1", laht, transferStops[0], time, wheelChair, conn);
+        Regex regex = new Regex(@"(?<=\d{2}:\d{2} - )\d{2}:\d{2}");
+        Match match = regex.Match(transferRoutes[0]);
+        string nextTime = match.Value + ":00";
+        List<string> transferRoutes2 = await FindRoutesByTwoStopsAsync("1", transferStops[0], siht, nextTime, wheelChair, conn);
+
+        foreach (var route in transferRoutes)
         {
-            List<string> itemsList = new List<string>();
-            List<string> itemsTempList = new List<string>();
-
-            // try to find a route with no transfers
-            findRouteByTwoStops("3", itemsLaht, itemsSiht, itemsTempList, ref curTime, wheelChair, conn);
-            if ( itemsTempList.Count > 0 )
-            {
-                itemsList.AddRange(itemsTempList);
-                return itemsList;
-            }
-            // if transfers are not allowed
-            if ( nudTransfersAmount == 0 )
-            {
-                return itemsList;
-            }
-            else
-            {
-                // try to find a route with only one transfer
-                findRouteByThreeStops(itemsLaht, itemsSiht, itemsTempList, curTime, true, wheelChair, conn);
-                if (itemsTempList.Count > 0 )
-                {
-                    itemsList.AddRange(itemsTempList);
-                    return itemsList;
-                }
-                // if only one transfer is allowed
-                if ( nudTransfersAmount == 1 ) { return itemsList;}
-                // try to find a route with two transfers
-                else
-                {
-                    findRouteByFourStops(itemsLaht, itemsSiht, itemsTempList, curTime, wheelChair, conn);
-                    if (itemsTempList.Count > 0)
-                    {
-                        itemsList.AddRange(itemsTempList);
-                    }
-                }
-                return itemsList;
-            }
-
+            itemsList.Add(route);
         }
+        
+        itemsList.Add(transferStops[0]);
+
+        foreach (var route in transferRoutes2)
+        {
+            itemsList.Add(route);
+        }
+        
+        regex = new Regex(@"(?<=\d{2}:\d{2} - )\d{2}:\d{2}");
+        match = regex.Match(transferRoutes2[0]);
+        string endTime = match.Value + ":00";
+        regex = new Regex(@"(?=\d{2}:\d{2} - )\d{2}:\d{2}");
+        match = regex.Match(transferRoutes[0]);
+        string startTime = match.Value + ":00";
+
+        itemsList.Add("Time for the route: " + helpers.timeHandler(endTime, startTime));
+        //}
+
+        return itemsList;
+    }
+
+    public async Task<List<string>> FindRouteAsync(string itemsLaht, string itemsSiht, int transfersAmount, bool wheelChair, string curTime, NpgsqlConnection conn)
+    {
+        List<string> itemsList = new List<string>();
+
+        string limitValue = transfersAmount.ToString();
+
+        List<string> uniqueRoutesLaht = new List<string>();
+        List<string> uniqueRoutesSiht = new List<string>();
+
+        await FindUniqueRoutesAsync(itemsLaht, itemsSiht, uniqueRoutesLaht, uniqueRoutesSiht, curTime, wheelChair, conn);
+
+        List<string> itemsByTwoStops = await FindRoutesByTwoStopsAsync("3", itemsLaht, itemsSiht, curTime, wheelChair, conn);
+
+        if (itemsByTwoStops.Count == 0 && transfersAmount > 0)
+        {
+            List<string> itemsByThreeStops = await FindRoutesByThreeStopsAsync(itemsLaht, itemsSiht, uniqueRoutesLaht, uniqueRoutesSiht, curTime, wheelChair, conn);
+            itemsList.AddRange(itemsByThreeStops);
+        } 
+        else
+        {
+            itemsList.AddRange(itemsByTwoStops);
+        }
+
+
+        return itemsList;
     }
 }
