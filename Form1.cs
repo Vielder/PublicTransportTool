@@ -738,13 +738,13 @@ namespace PublicTransportTool
         }
 
 
-        private List<string> findPath(string Laht, string Siht, bool Wheelchair, int TransfersAmount, string Time)
+        private async Task<List<string>> FindPathAsync(string Laht, string Siht, bool Wheelchair, int TransfersAmount, string Time)
         {
             // init PrjPathFinder
             IPathFinder pathFinder;
             pathFinder = new CPathFinder();
             List<string> strList = new List<string>();
-            strList = pathFinder.findRoute(Laht, Siht, TransfersAmount, Wheelchair, Time, conn);
+            strList = await pathFinder.FindRouteAsync(Laht, Siht, TransfersAmount, Wheelchair, Time, conn);
             return strList;
         }
 
@@ -785,7 +785,7 @@ namespace PublicTransportTool
             cmap.GpsUpdate(transportOverlay, map, prjRoot, cmbLiin.Text, type);
         }
 
-        private void btnOtsi_Click(object sender, EventArgs e)
+        private async void btnOtsi_Click(object sender, EventArgs e)
         {
             // action for Search button based on active comboboxes
             DateTime curTime = DateTime.Now;
@@ -821,7 +821,7 @@ namespace PublicTransportTool
                 cmbSiht.DroppedDown = false;
                 cmbLaht.DroppedDown = false;
                 cmbLiin.Items.Clear();
-                List<string> strList = findPath(cmbLaht.Text, cmbSiht.Text, checkWheelchair.Checked, (int)nudTransfersAmount.Value, curTime.ToLongTimeString());
+                List<string> strList = await FindPathAsync(cmbLaht.Text, cmbSiht.Text, checkWheelchair.Checked, (int)nudTransfersAmount.Value, curTime.ToLongTimeString());
                 if (strList.Count < 1)
                 {
                     // if not found
